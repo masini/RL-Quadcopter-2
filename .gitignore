@@ -1,0 +1,7 @@
+.ipynb_checkpoints/
+_Quadcopter_Project.ipynb
+__pycache__/
+agents/.ipynb_checkpoints/
+agents/__pycache__/
+data.txt
+rewards.txt

@@ -1,9 +1,17 @@
+import numpy as np
+
+import copy
+import random
+
+from collections import namedtuple, deque
+
+from keras import layers, models, optimizers, regularizers
+from keras import backend as K
+
 #
 # ReplayBuffer (source Section 3)
 #
 
-import random
-from collections import namedtuple, deque
 
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""
@@ -37,8 +45,6 @@ class ReplayBuffer:
 #
 # Actor (source Section 3)
 #
-from keras import layers, models, optimizers
-from keras import backend as K
 
 class Actor:
     """Actor (Policy) Model."""
@@ -68,12 +74,30 @@ class Actor:
         # Define input layer (states)
         states = layers.Input(shape=(self.state_size,), name='states')
 
-        # Add hidden layers
-        net = layers.Dense(units=32, activation='relu')(states)
-        net = layers.Dense(units=64, activation='relu')(net)
-        net = layers.Dense(units=32, activation='relu')(net)
+        # adding hidden layers 
+        net = layers.Dense(units = 32, use_bias = False, kernel_regularizer = regularizers.l2(0.01), 
+                           activity_regularizer = regularizers.l1(0.01))(states)
+        net = layers.BatchNormalization()(net)
+        net = layers.Activation('relu')(net)
+        net = layers.Dropout(0.5)(net)
 
-        # Try different layer sizes, activations, add batch normalization, regularizers, etc.
+        net = layers.Dense(units = 64, use_bias = False, kernel_regularizer = regularizers.l2(0.01), 
+                           activity_regularizer = regularizers.l1(0.01))(net)
+        net = layers.BatchNormalization()(net)
+        net = layers.Activation('relu')(net)
+        net = layers.Dropout(0.5)(net)
+
+        net = layers.Dense(units = 128, use_bias = False, kernel_regularizer = regularizers.l2(0.01), 
+                           activity_regularizer = regularizers.l1(0.01))(net)
+        net = layers.BatchNormalization()(net)
+        net = layers.Activation('relu')(net)
+        net = layers.Dropout(0.5)(net)
+
+        net = layers.Dense(units = 64, use_bias = False, kernel_regularizer = regularizers.l2(0.01), 
+                           activity_regularizer = regularizers.l1(0.01))(net)
+        net = layers.BatchNormalization()(net)
+        net = layers.Activation('relu')(net)
+        net = layers.Dropout(0.5)(net)
 
         # Add final output layer with sigmoid activation
         raw_actions = layers.Dense(units=self.action_size, activation='sigmoid',
@@ -128,13 +152,42 @@ class Critic:
         actions = layers.Input(shape=(self.action_size,), name='actions')
 
         # Add hidden layer(s) for state pathway
-        net_states = layers.Dense(units=32, activation='relu')(states)
-        net_states = layers.Dense(units=64, activation='relu')(net_states)
+        net_states = layers.Dense(units=32, use_bias = False, kernel_regularizer = regularizers.l2(0.01), 
+                                  activity_regularizer = regularizers.l1(0.01))(states)
+        net_states = layers.BatchNormalization()(net_states)
+        net_states = layers.Activation('relu')(net_states)
+        net_states = layers.Dropout(0.5)(net_states)
+        
+        net_states = layers.Dense(units=64, use_bias = False, kernel_regularizer = regularizers.l2(0.01), 
+                                  activity_regularizer = regularizers.l1(0.01))(states)
+        net_states = layers.BatchNormalization()(net_states)
+        net_states = layers.Activation('relu')(net_states)
+        net_states = layers.Dropout(0.5)(net_states)
+        
+        net_states = layers.Dense(units=128, use_bias = False, kernel_regularizer = regularizers.l2(0.01), 
+                                  activity_regularizer = regularizers.l1(0.01))(states)
+        net_states = layers.BatchNormalization()(net_states)
+        net_states = layers.Activation('relu')(net_states)
+        net_states = layers.Dropout(0.5)(net_states)
 
         # Add hidden layer(s) for action pathway
-        net_actions = layers.Dense(units=32, activation='relu')(actions)
-        net_actions = layers.Dense(units=64, activation='relu')(net_actions)
-
+        net_actions = layers.Dense(units=32, use_bias = False, kernel_regularizer=regularizers.l2(0.01), 
+                                   activity_regularizer=regularizers.l1(0.01))(actions)
+        net_actions = layers.BatchNormalization()(net_actions)
+        net_actions = layers.Activation('relu')(net_actions)
+        net_actions = layers.Dropout(0.5)(net_actions)
+        
+        net_actions = layers.Dense(units=64, use_bias = False, kernel_regularizer=regularizers.l2(0.01), 
+                                   activity_regularizer=regularizers.l1(0.01))(net_actions)
+        net_actions = layers.BatchNormalization()(net_actions)
+        net_actions = layers.Activation('relu')(net_actions)
+        net_actions = layers.Dropout(0.5)(net_actions)
+                                          
+        net_actions = layers.Dense(units=128, use_bias = False, kernel_regularizer=regularizers.l2(0.01), 
+                                   activity_regularizer=regularizers.l1(0.01))(net_actions)
+        net_actions = layers.BatchNormalization()(net_actions)
+        net_actions = layers.Activation('relu')(net_actions)
+        net_actions = layers.Dropout(0.5)(net_actions)
         # Try different layer sizes, activations, add batch normalization, regularizers, etc.
 
         # Combine state and action pathways
@@ -165,9 +218,6 @@ class Critic:
 #
 # Ornstein–Uhlenbeck Noise (source Section 3)
 #
-
-import numpy as np
-import copy
 
 class OUNoise:
     """Ornstein-Uhlenbeck process."""
@@ -264,7 +314,6 @@ class DDPG():
         next_states = np.vstack([e.next_state for e in experiences if e is not None])
 
         # Get predicted next-state actions and Q values from target models
-        #     Q_targets_next = critic_target(next_state, actor_target(next_state))
         actions_next = self.actor_target.model.predict_on_batch(next_states)
         Q_targets_next = self.critic_target.model.predict_on_batch([next_states, actions_next])
 

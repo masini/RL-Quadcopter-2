@@ -228,7 +228,9 @@ class OUNoise:
         self.theta = theta
         self.sigma = sigma
         self.reset()
-
+    def __str__(self):
+        return "mu={}, theta={}, sigma={}".format(self.mu, self.theta, self.sigma)
+    
     def reset(self):
         """Reset the internal state (= noise) to mean (mu)."""
         self.state = copy.copy(self.mu)
@@ -246,7 +248,7 @@ class OUNoise:
 
 class DDPG():
     """Reinforcement Learning agent that learns using DDPG."""
-    def __init__(self, task):
+    def __init__(self, task, gamma=0.99, tau=0.01, mu=0, theta=0.15, sigma = 0.2):
         self.task = task
         self.state_size = task.state_size
         self.action_size = task.action_size
@@ -277,8 +279,11 @@ class DDPG():
         self.memory = ReplayBuffer(self.buffer_size, self.batch_size)
 
         # Algorithm parameters
-        self.gamma = 0.99  # discount factor
-        self.tau = 0.01  # for soft update of target parameters
+        self.gamma = gamma  # discount factor
+        self.tau = tau  # for soft update of target parameters
+
+    def __str__(self):
+        return "DDPG(task={}, noise={}, discount={}, tau={})".format(self.task, self.noise, self.gamma, self.tau)
 
     def reset_episode(self):
         self.noise.reset()

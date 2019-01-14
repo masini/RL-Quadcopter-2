@@ -9,6 +9,16 @@ class CompositeTask():
         
         self.currentTask = tasks[0]
     
+    def __str__(self):
+        
+        str = "CompositeTask("
+        
+        for task in self.tasks:
+            str += "{}".format(task)
+        
+        str += ")"
+        return str
+    
     @property
     def state_size(self):
         return self.currentTask.state_size
@@ -81,31 +91,33 @@ class Task():
         return "Task(init_pose={}, init_velocities={}, init_angle_velocities={}, runtime={}, target_pos={})".format(self.sim.init_pose, self.sim.init_velocities, self.sim.init_angle_velocities, self.sim.runtime, self.target_pos)
     
     def get_reward(self):
-        """Uses current pose of sim to return reward."""
+        """Uses current pose of sim to return reward."""        
+
         reward = 0
         penalty = 0
         current_position = self.sim.pose[:3]
         
-        # penalty for euler angles, we want the takeoff to be stable
-        penalty += abs(self.sim.pose[3:6]).sum()
-        
-        # penalty for distance from target
+        # penalità per la distanza dal target
         penalty += abs(current_position[0]-self.target_pos[0])**2
         penalty += abs(current_position[1]-self.target_pos[1])**2
         penalty += 10*abs(current_position[2]-self.target_pos[2])**2
 
+        # penalità per gli angoli dei motori per renderlo stabile
+        penalty += abs(self.sim.pose[3:6]).sum()
+        
         # link velocity to residual distance
         penalty += abs(abs(current_position-self.target_pos).sum() - abs(self.sim.v).sum())
 
-        # extra reward for flying near the target
+        # reward è stare vicino al target
         distance = np.sqrt((current_position[0]-self.target_pos[0])**2 + 
                            (current_position[1]-self.target_pos[1])**2 + 
                            (current_position[2]-self.target_pos[2])**2)
 
-        if distance < 4:
-            reward += 10
-        # constant reward for flying
+        reward += max(0, 10-distance)
+
+        # è un reward anche essere ancora in volo
         reward += 1
+        
         return reward - penalty*0.0002
     
     def step(self, rotor_speeds):

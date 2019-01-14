@@ -6,37 +6,42 @@ class CompositeTask():
     def __init__(self, tasks):
         self.tasks = tasks
         self.taskIndex = 0
+        
+        self.currentTask = tasks[0]
     
     @property
     def state_size(self):
-        return self.tasks[self.taskIndex].state_size
+        return self.currentTask.state_size
     
     @property
     def action_size(self):
-        return self.tasks[self.taskIndex].action_size
+        return self.currentTask.action_size
     
     @property
     def action_low(self):
-        return self.tasks[self.taskIndex].action_low
+        return self.currentTask.action_low
     
     @property
     def action_high(self):
-        return self.tasks[self.taskIndex].action_high
+        return self.currentTask.action_high
     
     def get_reward(self):
-        return self.tasks[self.taskIndex].get_reward()
+        return self.currentTask.get_reward()
 
     def step(self, rotor_speeds):        
-        next_state, reward, done = self.tasks[self.taskIndex].step(rotor_speeds)
+        next_state, reward, done = self.currentTask.step(rotor_speeds)
         
-        if done and self.taskIndex < len(self.tasks):            
+        if done: 
             self.taskIndex += 1
-            done = false
+
+            if self.taskIndex < len(self.tasks):            
+                done = False
+                currentTask = self.tasks[self.taskIndex]
 
         return next_state, reward, done        
     
     def reset(self):
-        return self.tasks[self.taskIndex].reset()
+        return self.currentTask.reset()
 
 
 

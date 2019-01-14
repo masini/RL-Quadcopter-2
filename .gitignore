@@ -4,4 +4,4 @@ __pycache__/
 agents/.ipynb_checkpoints/
 agents/__pycache__/
 data.txt
-rewards.txt
+rewards/rewards.*

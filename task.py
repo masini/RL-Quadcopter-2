@@ -42,6 +42,13 @@ class CompositeTask():
     
     def reset(self):
         return self.currentTask.reset()
+    
+    def resetAll(self):
+        for task in self.tasks:
+            task.reset()
+        
+        self.taskIndex = 0        
+        self.currentTask = tasks[0]
 
 
 

@@ -58,7 +58,7 @@ class CompositeTask():
             task.reset()
         
         self.taskIndex = 0        
-        self.currentTask = tasks[0]
+        self.currentTask = self.tasks[0]
 
 
 
@@ -90,35 +90,55 @@ class Task():
     def __str__(self):
         return "Task(init_pose={}, init_velocities={}, init_angle_velocities={}, runtime={}, target_pos={})".format(self.sim.init_pose, self.sim.init_velocities, self.sim.init_angle_velocities, self.sim.runtime, self.target_pos)
     
-    def get_reward(self):
+    def get_reward(self, rotor_speeds):
         """Uses current pose of sim to return reward."""        
 
-        reward = 0
+        reward = 1
         penalty = 0
         current_position = self.sim.pose[:3]
+
+        penalties = []
         
         # penalità per la distanza dal target
-        penalty += abs(current_position[0]-self.target_pos[0])**2
-        penalty += abs(current_position[1]-self.target_pos[1])**2
-        penalty += 10*abs(current_position[2]-self.target_pos[2])**2
+        #penalty += abs(current_position[0]-self.target_pos[0])**2
+        #penalty += abs(current_position[1]-self.target_pos[1])**2
+
+        z_distance = 10*abs(current_position[2]-self.target_pos[2])**2
 
         # penalità per gli angoli dei motori per renderlo stabile
-        penalty += abs(self.sim.pose[3:6]).sum()
-        
-        # link velocity to residual distance
-        penalty += abs(abs(current_position-self.target_pos).sum() - abs(self.sim.v).sum())
+        #penalty += abs(self.sim.pose[3:6]).sum()
 
         # reward è stare vicino al target
-        distance = np.sqrt((current_position[0]-self.target_pos[0])**2 + 
-                           (current_position[1]-self.target_pos[1])**2 + 
-                           (current_position[2]-self.target_pos[2])**2)
+        # position_distance = np.sqrt((current_position[0]-self.target_pos[0])**2 +
+        #                    (current_position[1]-self.target_pos[1])**2 +
+        #                    (current_position[2]-self.target_pos[2])**2)
 
-        reward += max(0, 10-distance)
+        good_rotors_speed = np.array([500, 500, 500, 500])
 
-        # è un reward anche essere ancora in volo
-        reward += 1
-        
-        return reward - penalty*0.0002
+        position_distance = np.linalg.norm(self.sim.pose[:3]-self.target_pos)
+        angle_distance = np.linalg.norm(self.sim.pose[3:6])
+        rotor_distance = np.linalg.norm(np.array(rotor_speeds) - good_rotors_speed)
+
+        penalties.append(z_distance)
+        penalties.append(position_distance)
+        penalties.append(angle_distance)
+        penalties.append(rotor_distance)
+
+        penalties = np.array(penalties)
+
+        min, max = penalties.min(), penalties.max()
+
+        penalties = (penalties - min)/(max-min)
+
+        #print("penalties {}, sum {}, sum/size {}".format(penalties, penalties.sum(), (penalties.sum() / penalties.size)))
+
+        reward = 1 - (penalties.sum() / penalties.size)
+
+#        print("current reward {}".format(reward))
+
+        reward = np.tanh(1 - 0.003*(abs(self.sim.pose[:3] - self.target_pos))).sum()
+
+        return reward
     
     def step(self, rotor_speeds):
         """Uses action to obtain next state, reward, done."""
@@ -126,7 +146,7 @@ class Task():
         pose_all = []
         for _ in range(self.action_repeat):
             done = self.sim.next_timestep(rotor_speeds) # update the sim pose and velocities
-            reward += self.get_reward() 
+            reward += self.get_reward(rotor_speeds)
             pose_all.append(self.sim.pose)
         next_state = np.concatenate(pose_all)
         return next_state, reward, done
@@ -134,5 +154,5 @@ class Task():
     def reset(self):
         """Reset the sim to start a new episode."""
         self.sim.reset()
-        state = np.concatenate([self.sim.pose] * self.action_repeat) 
+        state = np.concatenate([self.sim.pose] * self.action_repeat)
         return state

@@ -1,71 +1,10 @@
 import numpy as np
 from physics_sim import PhysicsSim
 
-class CompositeTask():
-    """A sequence of Tasks."""
-    def __init__(self, tasks):
-        self.tasks = tasks
-        self.taskIndex = 0
-        
-        self.currentTask = tasks[0]
-    
-    def __str__(self):
-        
-        str = "CompositeTask("
-        
-        for task in self.tasks:
-            str += "{}".format(task)
-        
-        str += ")"
-        return str
-    
-    @property
-    def state_size(self):
-        return self.currentTask.state_size
-    
-    @property
-    def action_size(self):
-        return self.currentTask.action_size
-    
-    @property
-    def action_low(self):
-        return self.currentTask.action_low
-    
-    @property
-    def action_high(self):
-        return self.currentTask.action_high
-    
-    def get_reward(self):
-        return self.currentTask.get_reward()
-
-    def step(self, rotor_speeds):        
-        next_state, reward, done = self.currentTask.step(rotor_speeds)
-        
-        if done: 
-            self.taskIndex += 1
-
-            if self.taskIndex < len(self.tasks):            
-                done = False
-                currentTask = self.tasks[self.taskIndex]
-
-        return next_state, reward, done        
-    
-    def reset(self):
-        return self.currentTask.reset()
-    
-    def resetAll(self):
-        for task in self.tasks:
-            task.reset()
-        
-        self.taskIndex = 0        
-        self.currentTask = self.tasks[0]
-
-
-
 class Task():
     """Task (environment) that defines the goal and provides feedback to the agent."""
-    def __init__(self, init_pose=None, init_velocities=None, 
-        init_angle_velocities=None, runtime=5., target_pos=None):
+    def __init__(self, init_pose=None, init_velocities=None,
+                 init_angle_velocities=None, runtime=5., target_pos=None):
         """Initialize a Task object.
         Params
         ======
@@ -76,78 +15,45 @@ class Task():
             target_pos: target/goal (x,y,z) position for the agent
         """
         # Simulation
-        self.sim = PhysicsSim(init_pose, init_velocities, init_angle_velocities, runtime) 
+        self.sim = PhysicsSim(init_pose, init_velocities, init_angle_velocities, runtime)
         self.action_repeat = 3
 
-        self.state_size = self.action_repeat * 6
+        self.state_size = self.action_repeat * self.sim.pose.size
         self.action_low = 0
         self.action_high = 900
         self.action_size = 4
 
         # Goal
-        self.target_pos = target_pos if target_pos is not None else np.array([0., 0., 10.]) 
+        if target_pos is None :
+            print("Setting default init pose")
+        self.target_pos = target_pos if target_pos is not None else np.array([0., 0., 10., 0., 0., 0.])
 
-    def __str__(self):
-        return "Task(init_pose={}, init_velocities={}, init_angle_velocities={}, runtime={}, target_pos={})".format(self.sim.init_pose, self.sim.init_velocities, self.sim.init_angle_velocities, self.sim.runtime, self.target_pos)
-    
-    def get_reward(self, rotor_speeds):
-        """Uses current pose of sim to return reward."""        
+    def get_reward(self):
+        """Uses current pose of sim to return reward."""
 
-        reward = 1
-        penalty = 0
-        current_position = self.sim.pose[:3]
+        # reward for Z is calculated apart to give it more importance
+        reward_z = 1-np.tanh(abs(self.sim.pose[2]-self.target_pos[2])/self.target_pos[2])
+        reward_z *= 3
 
-        penalties = []
-        
-        # penalità per la distanza dal target
-        #penalty += abs(current_position[0]-self.target_pos[0])**2
-        #penalty += abs(current_position[1]-self.target_pos[1])**2
+        # reward for other coordinates
+        reward_all = 1-np.tanh(abs(self.sim.pose[0:2]-self.target_pos[0:2]).sum())
+        reward_all += 1-np.tanh(abs(self.sim.pose[3:]-self.target_pos[3:]).sum())
 
-        z_distance = 10*abs(current_position[2]-self.target_pos[2])**2
+        reward = reward_z + reward_all
 
-        # penalità per gli angoli dei motori per renderlo stabile
-        #penalty += abs(self.sim.pose[3:6]).sum()
+        return reward * 10
 
-        # reward è stare vicino al target
-        # position_distance = np.sqrt((current_position[0]-self.target_pos[0])**2 +
-        #                    (current_position[1]-self.target_pos[1])**2 +
-        #                    (current_position[2]-self.target_pos[2])**2)
-
-        good_rotors_speed = np.array([500, 500, 500, 500])
-
-        position_distance = np.linalg.norm(self.sim.pose[:3]-self.target_pos)
-        angle_distance = np.linalg.norm(self.sim.pose[3:6])
-        rotor_distance = np.linalg.norm(np.array(rotor_speeds) - good_rotors_speed)
-
-        penalties.append(z_distance)
-        penalties.append(position_distance)
-        penalties.append(angle_distance)
-        penalties.append(rotor_distance)
-
-        penalties = np.array(penalties)
-
-        min, max = penalties.min(), penalties.max()
-
-        penalties = (penalties - min)/(max-min)
-
-        #print("penalties {}, sum {}, sum/size {}".format(penalties, penalties.sum(), (penalties.sum() / penalties.size)))
-
-        reward = 1 - (penalties.sum() / penalties.size)
-
-#        print("current reward {}".format(reward))
-
-        reward = np.tanh(1 - 0.003*(abs(self.sim.pose[:3] - self.target_pos))).sum()
-
-        return reward
-    
     def step(self, rotor_speeds):
         """Uses action to obtain next state, reward, done."""
         reward = 0
         pose_all = []
         for _ in range(self.action_repeat):
             done = self.sim.next_timestep(rotor_speeds) # update the sim pose and velocities
-            reward += self.get_reward(rotor_speeds)
+            new_reward = self.get_reward()
+            reward = reward + new_reward if new_reward > reward else reward -1
             pose_all.append(self.sim.pose)
+            if done :
+                reward += 10
         next_state = np.concatenate(pose_all)
         return next_state, reward, done
 
